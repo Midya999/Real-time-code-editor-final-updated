@@ -38,9 +38,14 @@ const App = () => {
     });
 
     socket.on("codeUpdate", (newCode) => {
-      setCode(newCode);
-    });
-
+  setCode(newCode);
+  if (editorRef.current) {
+    const model = editorRef.current.getModel();
+    if (model && model.getValue() !== newCode) {
+      model.setValue(newCode);
+    }
+  }
+});
     socket.on("usertyping", (user) => {
       setTyping(`${user.slice(0, 8)}...is typing`);
       setTimeout(() => setTyping(""), 2000);
