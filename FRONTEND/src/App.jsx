@@ -38,13 +38,25 @@ const App = () => {
     });
 
     socket.on("codeUpdate", (newCode) => {
-  setCode(newCode);
+
   if (editorRef.current) {
+
     const model = editorRef.current.getModel();
+
     if (model && model.getValue() !== newCode) {
+
+      const position = editorRef.current.getPosition(); // save cursor
+
       model.setValue(newCode);
+
+      editorRef.current.setPosition(position); // restore cursor
     }
+
   }
+
+  setCode(newCode);
+
+});
 });
     socket.on("usertyping", (user) => {
       setTyping(`${user.slice(0, 8)}...is typing`);
