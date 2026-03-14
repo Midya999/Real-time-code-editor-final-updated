@@ -1,14 +1,16 @@
-import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
-import path from 'path';
-import axios from 'axios';
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import path from "path";
+import axios from "axios";
 
 const app = express();
 const server = http.createServer(app);
+
 const url = "https://real-time-code-editor-final-updated.onrender.com";
 const interval = 30000;
 
+// keep render server alive
 function reloadWebsite() {
   axios
     .get(url)
@@ -19,15 +21,17 @@ function reloadWebsite() {
       console.error(`Error: ${error.message}`);
     });
 }
-// Call the function every 30 seconds
+
 setInterval(reloadWebsite, interval);
 
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-    }
+  cors: {
+    origin: "*",
+  },
 });
+
 const rooms = new Map();
+
 const languageMap = {
   javascript: 63,
   python: 71,
@@ -35,65 +39,96 @@ const languageMap = {
   cpp: 54,
 };
 
+io.on("connection", (socket) => {
+  console.log("user connected", socket.id);
 
-io.on('connection', (socket) => {
-    console.log('user connected', socket.id);
+  let currentRoom = null;
+  let currentUser = null;
 
-    let currentRoom = null;
-    let currentUser = null;
-    socket.on('join', ({ roomId, username }) => {
-        if (currentRoom) {
-            socket.leave(currentRoom);
-            rooms.get(currentRoom).users.delete(currentUser);
-            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom).users)); 
-        }
-        currentRoom = roomId;
-        currentUser = username;
-        socket.join(roomId);
-        if (!rooms.has(roomId)) {
-            rooms.set(roomId, {users: new Set(),code:"Start coding...",language:"javascript"});
-        }
+  // JOIN ROOM
+  socket.on("join", ({ roomId, username }) => {
+    if (currentRoom) {
+      socket.leave(currentRoom);
 
-        rooms.get(roomId).users.add(username);
-        socket.emit("codeUpdate", rooms.get(roomId).code);
-        socket.emit("languageUpdated", rooms.get(roomId).language);
-        io.to(roomId).emit("userJoined", Array.from(rooms.get(currentRoom).users));
-        
- 
+      if (rooms.has(currentRoom)) {
+        rooms.get(currentRoom).users.delete(currentUser);
 
-    });
+        io.to(currentRoom).emit(
+          "userJoined",
+          Array.from(rooms.get(currentRoom).users)
+        );
+      }
+    }
 
-    socket.on('codeChange', ({ roomId, code }) => {
-  if (rooms.has(roomId)) {
-    rooms.get(roomId).code = code;
-  }
+    currentRoom = roomId;
+    currentUser = username;
 
-  io.to(roomId).emit('codeUpdate', code);
+    socket.join(roomId);
 
-});
-    socket.on("leaveRoom",()=>{
-        if (currentRoom && currentUser) {
-            socket.leave(currentRoom);
-            rooms.get(currentRoom).users.delete(currentUser);
-            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom).users)); 
-            
-            socket.leave(currentRoom);
-                currentRoom = null;
-                currentUser = null;
-        }
-    })
+    if (!rooms.has(roomId)) {
+      rooms.set(roomId, {
+        users: new Set(),
+        code: "// Start coding...",
+        language: "javascript",
+      });
+    }
 
-    socket.on("typing", ({roomId,username}) => {
-        socket.to(roomId).emit("usertyping", username);
-    });
-    socket.on("languageChange", ({roomId,language}) => {
+    rooms.get(roomId).users.add(username);
 
+    // send existing code + language
+    socket.emit("codeUpdate", rooms.get(roomId).code);
+    socket.emit("languageUpdated", rooms.get(roomId).language);
+
+    // update users list
+    io.to(roomId).emit(
+      "userJoined",
+      Array.from(rooms.get(roomId).users)
+    );
+  });
+
+  // CODE CHANGE
+  socket.on("codeChange", ({ roomId, code }) => {
     if (rooms.has(roomId)) {
-        rooms.get(roomId).language = language;  // save language
+      rooms.get(roomId).code = code;
+    }
+
+    io.to(roomId).emit("codeUpdate", code);
+  });
+
+  // LEAVE ROOM
+  socket.on("leaveRoom", () => {
+    if (currentRoom && currentUser) {
+      socket.leave(currentRoom);
+
+      if (rooms.has(currentRoom)) {
+        rooms.get(currentRoom).users.delete(currentUser);
+
+        io.to(currentRoom).emit(
+          "userJoined",
+          Array.from(rooms.get(currentRoom).users)
+        );
+      }
+
+      currentRoom = null;
+      currentUser = null;
+    }
+  });
+
+  // TYPING INDICATOR
+  socket.on("typing", ({ roomId, username }) => {
+    socket.to(roomId).emit("usertyping", username);
+  });
+
+  // LANGUAGE CHANGE
+  socket.on("languageChange", ({ roomId, language }) => {
+    if (rooms.has(roomId)) {
+      rooms.get(roomId).language = language;
     }
 
     io.to(roomId).emit("languageUpdated", language);
-});
+  });
+
+  // RUN CODE
   socket.on("compileCode", async ({ code, roomId, language, input }) => {
     try {
       if (!rooms.has(roomId)) return;
@@ -125,20 +160,32 @@ io.on('connection', (socket) => {
     }
   });
 
-    socket.on('disconnect', () => {
-        if (currentRoom && currentUser) { 
-            rooms.get(currentRoom).users.delete(currentUser);
-            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom).users)); 
-        }          
-        console.log('user disconnected', socket.id);          
-    });
+  // DISCONNECT
+  socket.on("disconnect", () => {
+    if (currentRoom && currentUser && rooms.has(currentRoom)) {
+      rooms.get(currentRoom).users.delete(currentUser);
+
+      io.to(currentRoom).emit(
+        "userJoined",
+        Array.from(rooms.get(currentRoom).users)
+      );
+    }
+
+    console.log("user disconnected", socket.id);
+  });
 });
+
+// SERVE FRONTEND
 const port = process.env.PORT || 5000;
 const __dirname = path.resolve();
-app.use(express.static(path.join(__dirname, "/FRONTEND/dist")));    
-app.use((req, res) => { 
-    res.sendFile(path.join(__dirname, "FRONTEND", "dist", "index.html"));    
-});             
+
+app.use(express.static(path.join(__dirname, "/FRONTEND/dist")));
+
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, "FRONTEND", "dist", "index.html"));
+});
+
+// START SERVER
 server.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
