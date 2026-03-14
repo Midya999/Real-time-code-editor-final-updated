@@ -103,10 +103,20 @@ const App = () => {
   };
 
   const handleCodeChange = (newCode) => {
-    setCode(newCode);
-    socket.emit("codeChange", { roomId, code: newCode });
-    socket.emit("typing", { roomId, username: userName });
-  };
+  if (!newCode) return;   // important fix
+
+  setCode(newCode);
+
+  socket.emit("codeChange", {
+    roomId,
+    code: newCode
+  });
+
+  socket.emit("typing", {
+    roomId,
+    username: userName
+  });
+};
 
   const handleLanguageChange = (e) => {
     const newLanguage = e.target.value;
