@@ -63,14 +63,14 @@ io.on('connection', (socket) => {
 
     });
 
-    socket.on('codeChange', ({roomId,code}) => {
-      if (rooms.has(roomId)) {
-        rooms.get(roomId).code = code;
-      }
-         
-            socket.to(roomId).emit('codeUpdate', code);
-        
-    });
+    socket.on('codeChange', ({ roomId, code }) => {
+  if (rooms.has(roomId)) {
+    rooms.get(roomId).code = code;
+  }
+
+  io.to(roomId).emit('codeUpdate', code);
+
+});
     socket.on("leaveRoom",()=>{
         if (currentRoom && currentUser) {
             socket.leave(currentRoom);
