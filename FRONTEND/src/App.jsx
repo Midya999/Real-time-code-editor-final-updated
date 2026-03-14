@@ -10,6 +10,10 @@ const socket = io(
     : window.location.origin
 );
 
+socket.on("connect", () => {
+  console.log("connected to server", socket.id);
+});
+
 const App = () => {
 
   const editorRef = useRef(null);
@@ -19,151 +23,170 @@ const App = () => {
   const [userName, setUserName] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [code, setCode] = useState("// Start coding...");
+  const [copySuccess, setCopySuccess] = useState("");
   const [users, setUsers] = useState([]);
   const [typing, setTyping] = useState("");
   const [output, setOutput] = useState("");
+  const [version, setVersion] = useState("*");
   const [running, setRunning] = useState(false);
   const [userInput, setUserInput] = useState("");
 
   useEffect(() => {
 
-    socket.on("userJoined", setUsers);
+    socket.on("userJoined", (users) => {
+      setUsers(users);
+    });
 
-    socket.on("codeUpdate", setCode);
+    socket.on("codeUpdate", (newCode) => {
+      setCode(newCode);
+    });
 
     socket.on("usertyping", (user) => {
-      setTyping(`${user} is typing`);
+      setTyping(`${user.slice(0, 8)}...is typing`);
       setTimeout(() => setTyping(""), 2000);
     });
 
-    socket.on("languageUpdated", (lang) => {
-
-      setLanguage(lang);
+    socket.on("languageUpdated", (newLanguage) => {
+      setLanguage(newLanguage);
 
       if (editorRef.current) {
-
         const model = editorRef.current.getModel();
-
-        if (model) {
-          window.monaco.editor.setModelLanguage(model, lang);
-        }
-
+        window.monaco.editor.setModelLanguage(model, newLanguage);
       }
-
     });
 
-    socket.on("codeResponse", (res) => {
-      setOutput(res.run.output);
+    socket.on("codeResponse", (response) => {
+      setOutput(response.run.output);
       setRunning(false);
     });
+
+    return () => {
+      socket.off("userJoined");
+      socket.off("codeUpdate");
+      socket.off("usertyping");
+      socket.off("languageUpdated");
+      socket.off("codeResponse");
+    };
+
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      socket.emit("leaveRoom");
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
 
   }, []);
 
   const joinRoom = () => {
-
     if (roomId && userName) {
-
-      socket.emit("join", {
-        roomId,
-        username: userName
-      });
-
+      socket.emit("join", { roomId, username: userName });
       setJoined(true);
-
     }
-
   };
 
   const leaveRoom = () => {
-
     socket.emit("leaveRoom");
-
     setJoined(false);
-
+    setRoomId("");
+    setUserName("");
     setCode("// Start coding...");
-
     setLanguage("javascript");
-
   };
 
-  const handleCodeChange = (value) => {
+  const copyRoomId = () => {
+    navigator.clipboard.writeText(roomId);
+    setCopySuccess("copied to clipboard!");
 
-    if (!value) return;
-
-    setCode(value);
-
-    socket.emit("codeChange", {
-      roomId,
-      code: value
-    });
-
-    socket.emit("typing", {
-      roomId,
-      username: userName
-    });
-
+    setTimeout(() => setCopySuccess(""), 2000);
   };
 
+  const handleCodeChange = (newCode) => {
+  if (!newCode) return;   // important fix
+
+  setCode(newCode);
+
+  socket.emit("codeChange", {
+    roomId,
+    code: newCode
+  });
+
+  socket.emit("typing", {
+    roomId,
+    username: userName
+  });
+};
   const handleLanguageChange = (e) => {
+    const newLanguage = e.target.value;
 
-    const newLang = e.target.value;
-
-    setLanguage(newLang);
+    setLanguage(newLanguage);
 
     socket.emit("languageChange", {
       roomId,
-      language: newLang
+      language: newLanguage
     });
 
+    if (editorRef.current) {
+      const model = editorRef.current.getModel();
+      window.monaco.editor.setModelLanguage(model, newLanguage);
+    }
   };
 
   const runCode = () => {
 
     setRunning(true);
-
     setOutput("Running code...");
 
     socket.emit("compileCode", {
       code,
       roomId,
       language,
+      version,
       input: userInput
     });
 
   };
 
   const createRoomId = () => {
-    setRoomId(uuidv4());
+    const newRoomId = uuidv4();
+    setRoomId(newRoomId);
   };
 
   if (!joined) {
-
     return (
-
       <div className="join-container">
 
-        <h1>Join Code Room</h1>
+        <div className="join-form">
 
-        <input
-          placeholder="Room Id"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-        />
+          <h1>Join Code Room</h1>
 
-        <button onClick={createRoomId}>Create Room</button>
+          <input
+            type="text"
+            placeholder="Room Id"
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
+          />
 
-        <input
-          placeholder="Your Name"
-          value={userName}
-          onChange={(e) => setUserName(e.target.value)}
-        />
+          <button onClick={createRoomId}>Create Id</button>
 
-        <button onClick={joinRoom}>Join</button>
+          <input
+            type="text"
+            placeholder="Your Name"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
+          />
+
+          <button onClick={joinRoom}>Join Room</button>
+
+        </div>
 
       </div>
-
     );
-
   }
 
   return (
@@ -172,58 +195,90 @@ const App = () => {
 
       <div className="sidebar">
 
-        <h3>Code Room: {roomId}</h3>
+        <div className="room-info">
+          <h2>Code Room: {roomId}</h2>
 
-        <h4>Users</h4>
+          <button onClick={copyRoomId} className="copy-button">
+            Copy Id
+          </button>
+
+          {copySuccess && (
+            <span className="copy-success">{copySuccess}</span>
+          )}
+
+        </div>
+
+        <h3>Users in Room:</h3>
 
         <ul>
-          {users.map((u, i) => (
-            <li key={i}>{u}</li>
+          {users.map((user, index) => (
+            <li key={index}>{user}</li>
           ))}
         </ul>
 
-        <p>{typing}</p>
+        <p className="typing-indicator">{typing}</p>
 
-        <select value={language} onChange={handleLanguageChange}>
+        <select
+          className="language-selector"
+          value={language}
+          onChange={handleLanguageChange}
+        >
           <option value="javascript">JavaScript</option>
           <option value="python">Python</option>
           <option value="java">Java</option>
           <option value="cpp">C++</option>
         </select>
 
-        <button onClick={leaveRoom}>Leave Room</button>
+        <button className="leave-button" onClick={leaveRoom}>
+          Leave Room
+        </button>
 
       </div>
 
       <div className="editor-wrapper">
 
         <Editor
-          height="60%"
+          height={"60%"}
+          defaultLanguage={language}
           language={language}
           value={code}
           onChange={handleCodeChange}
           theme="vs-dark"
-          onMount={(editor) => editorRef.current = editor}
+          onMount={(editor) => {
+            editorRef.current = editor;
+          }}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 14,
+          }}
         />
 
         <textarea
-          placeholder="Enter input..."
+          className="input-console"
+          placeholder="Enter input for your code here..."
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
         />
 
-        <button onClick={runCode} disabled={running}>
+        <button
+          className="run-btn"
+          onClick={runCode}
+          disabled={running}
+        >
           {running ? "Running..." : "Execute"}
         </button>
 
-        <textarea value={output} readOnly />
+        <textarea
+          className="output-console"
+          value={output}
+          readOnly
+          placeholder="Output will appear here..."
+        />
 
       </div>
 
     </div>
-
   );
-
 };
 
 export default App;
