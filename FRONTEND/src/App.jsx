@@ -57,7 +57,7 @@ const App = () => {
   setCode(newCode);
 
 });
-});
+
     socket.on("usertyping", (user) => {
       setTyping(`${user.slice(0, 8)}...is typing`);
       setTimeout(() => setTyping(""), 2000);
