@@ -73,7 +73,7 @@ io.on("connection", (socket) => {
       rooms.get(roomId).code = code;
     }
 
-    io.to(roomId).emit("codeUpdate", code);
+   socket.to(roomId).emit("codeUpdate", code);
 
   });
 
