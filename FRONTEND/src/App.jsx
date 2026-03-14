@@ -37,25 +37,8 @@ const App = () => {
       setUsers(users);
     });
 
-    socket.on("codeUpdate", (newCode) => {
-
-  if (editorRef.current) {
-
-    const model = editorRef.current.getModel();
-
-    if (model && model.getValue() !== newCode) {
-
-      const position = editorRef.current.getPosition(); // save cursor
-
-      model.setValue(newCode);
-
-      editorRef.current.setPosition(position); // restore cursor
-    }
-
-  }
-
+socket.on("codeUpdate", (newCode) => {
   setCode(newCode);
-
 });
 
     socket.on("usertyping", (user) => {
