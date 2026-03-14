@@ -6,7 +6,7 @@ import axios from 'axios';
 
 const app = express();
 const server = http.createServer(app);
-const url = "https://real-time-code-editor-final.onrender.com";
+const url = "https://real-time-code-editor-final-updated.onrender.com";
 const interval = 30000;
 
 function reloadWebsite() {
