@@ -2,6 +2,7 @@ import "./App.css";
 import io from "socket.io-client";
 import { useState } from "react";
 import Editor from "@monaco-editor/react";
+import{v4 as uuidv4} from "uuid";
 import { useEffect } from "react";
 const socket = io("https://real-time-code-editor-final.onrender.com");
 socket.on("connect", () => {
@@ -96,12 +97,19 @@ const handleLanguageChange = (e) => {
   setLanguage(newLanguage);
   socket.emit("languageChange", {roomId, language: newLanguage});
 };      
+const[userInput,setUserInput] = useState("");
+
 const runCode = ()=>{
   setRunning(true);
   setOutput("Running code...");
 
-  socket.emit("compileCode", {code, roomId, language, version});
+  socket.emit("compileCode", {code, roomId, language, version,input: userInput});
 }
+const createRoomId = () => {
+  const newRoomId = uuidv4();
+  setRoomId(newRoomId);
+};
+
 
   if(!joined){
     return (
@@ -111,6 +119,8 @@ const runCode = ()=>{
           Join Code Room
         </h1>
         <input type="text" placeholder="Room Id" value={roomId} onChange={(e) => setRoomId(e.target.value)} />
+
+        <button onClick={createRoomId}>Create Id</button>
         <input type="text" placeholder="Your Name" value={userName} onChange={(e) => setUserName(e.target.value)} />
         <button onClick={joinRoom}>Join Room</button> 
       </div>
@@ -156,6 +166,12 @@ const runCode = ()=>{
           fontSize :14,
         }
       }
+    />
+    <textarea
+      className="input-console"
+      placeholder="Enter input for your code here..."
+      value={userInput}
+      onChange={(e) => setUserInput(e.target.value)}
     />
     <button 
   className="run-btn"

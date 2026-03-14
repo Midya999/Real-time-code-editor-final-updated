@@ -44,33 +44,38 @@ io.on('connection', (socket) => {
     socket.on('join', ({ roomId, username }) => {
         if (currentRoom) {
             socket.leave(currentRoom);
-            rooms.get(currentRoom).delete(currentUser);
-            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom))); 
+            rooms.get(currentRoom).users.delete(currentUser);
+            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom).users)); 
         }
         currentRoom = roomId;
         currentUser = username;
         socket.join(roomId);
         if (!rooms.has(roomId)) {
-            rooms.set(roomId, new Set());
+            rooms.set(roomId, {users: new Set(),code:"Start coding...",language:"javascript"});
         }
 
-        rooms.get(roomId).add(username);
-        io.to(roomId).emit("userJoined", Array.from(rooms.get(currentRoom)));
-       
+        rooms.get(roomId).users.add(username);
+        socket.emit("codeUpdate", rooms.get(roomId).code);
+        socket.emit("languageUpdated", rooms.get(roomId).language);
+        io.to(roomId).emit("userJoined", Array.from(rooms.get(currentRoom).users));
+        
  
 
     });
 
     socket.on('codeChange', ({roomId,code}) => {
-        
+      if (rooms.has(roomId)) {
+        rooms.get(roomId).code = code;
+      }
+         
             socket.to(roomId).emit('codeUpdate', code);
         
     });
     socket.on("leaveRoom",()=>{
         if (currentRoom && currentUser) {
             socket.leave(currentRoom);
-            rooms.get(currentRoom).delete(currentUser);
-            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom))); 
+            rooms.get(currentRoom).users.delete(currentUser);
+            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom).users)); 
             
             socket.leave(currentRoom);
                 currentRoom = null;
@@ -82,9 +87,14 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit("usertyping", username);
     });
     socket.on("languageChange", ({roomId,language}) => {
-        io.to(roomId).emit("languageUpdated", language);
-    });
-  socket.on("compileCode", async ({ code, roomId, language }) => {
+
+    if (rooms.has(roomId)) {
+        rooms.get(roomId).language = language;  // save language
+    }
+
+    io.to(roomId).emit("languageUpdated", language);
+});
+  socket.on("compileCode", async ({ code, roomId, language, input }) => {
     try {
       if (!rooms.has(roomId)) return;
 
@@ -95,6 +105,7 @@ io.on('connection', (socket) => {
         {
           source_code: code,
           language_id: languageId,
+          stdin: input,
         }
       );
 
@@ -116,8 +127,8 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         if (currentRoom && currentUser) { 
-            rooms.get(currentRoom).delete(currentUser);
-            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom))); 
+            rooms.get(currentRoom).users.delete(currentUser);
+            io.to(currentRoom).emit("userJoined", Array.from(rooms.get(currentRoom).users)); 
         }          
         console.log('user disconnected', socket.id);          
     });

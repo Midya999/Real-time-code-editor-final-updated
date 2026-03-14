@@ -180,3 +180,15 @@ ul{
   font-size: 20px; 
   height: 200px ;
 }
+.input-console{
+  width: 150%;
+  margin-top: 10px;
+  padding: 10px;
+  font-size: 20px; 
+  height: 100px ;
+  font-family: monospace;
+  background-color: #1e1e1e;
+  color:white;
+  border: 1px solid #444;
+  resize: none;
+}
